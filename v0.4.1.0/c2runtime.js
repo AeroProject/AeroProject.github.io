@@ -19099,61 +19099,170 @@ cr.behaviors.destroy = function(runtime)
 			this.runtime.DestroyInstance(this.inst);
 	};
 }());
+;
+;
+cr.behaviors.scrollto = function(runtime)
+{
+	this.runtime = runtime;
+	this.shakeMag = 0;
+	this.shakeStart = 0;
+	this.shakeEnd = 0;
+	this.shakeMode = 0;
+};
+(function ()
+{
+	var behaviorProto = cr.behaviors.scrollto.prototype;
+	behaviorProto.Type = function(behavior, objtype)
+	{
+		this.behavior = behavior;
+		this.objtype = objtype;
+		this.runtime = behavior.runtime;
+	};
+	var behtypeProto = behaviorProto.Type.prototype;
+	behtypeProto.onCreate = function()
+	{
+	};
+	behaviorProto.Instance = function(type, inst)
+	{
+		this.type = type;
+		this.behavior = type.behavior;
+		this.inst = inst;				// associated object instance to modify
+		this.runtime = type.runtime;
+	};
+	var behinstProto = behaviorProto.Instance.prototype;
+	behinstProto.onCreate = function()
+	{
+		this.enabled = (this.properties[0] !== 0);
+	};
+	behinstProto.saveToJSON = function ()
+	{
+		return {
+			"smg": this.behavior.shakeMag,
+			"ss": this.behavior.shakeStart,
+			"se": this.behavior.shakeEnd,
+			"smd": this.behavior.shakeMode
+		};
+	};
+	behinstProto.loadFromJSON = function (o)
+	{
+		this.behavior.shakeMag = o["smg"];
+		this.behavior.shakeStart = o["ss"];
+		this.behavior.shakeEnd = o["se"];
+		this.behavior.shakeMode = o["smd"];
+	};
+	behinstProto.tick = function ()
+	{
+	};
+	function getScrollToBehavior(inst)
+	{
+		var i, len, binst;
+		for (i = 0, len = inst.behavior_insts.length; i < len; ++i)
+		{
+			binst = inst.behavior_insts[i];
+			if (binst.behavior instanceof cr.behaviors.scrollto)
+				return binst;
+		}
+		return null;
+	};
+	behinstProto.tick2 = function ()
+	{
+		if (!this.enabled)
+			return;
+		var all = this.behavior.my_instances.valuesRef();
+		var sumx = 0, sumy = 0;
+		var i, len, binst, count = 0;
+		for (i = 0, len = all.length; i < len; i++)
+		{
+			binst = getScrollToBehavior(all[i]);
+			if (!binst || !binst.enabled)
+				continue;
+			sumx += all[i].x;
+			sumy += all[i].y;
+			++count;
+		}
+		var layout = this.inst.layer.layout;
+		var now = this.runtime.kahanTime.sum;
+		var offx = 0, offy = 0;
+		if (now >= this.behavior.shakeStart && now < this.behavior.shakeEnd)
+		{
+			var mag = this.behavior.shakeMag * Math.min(this.runtime.timescale, 1);
+			if (this.behavior.shakeMode === 0)
+				mag *= 1 - (now - this.behavior.shakeStart) / (this.behavior.shakeEnd - this.behavior.shakeStart);
+			var a = Math.random() * Math.PI * 2;
+			var d = Math.random() * mag;
+			offx = Math.cos(a) * d;
+			offy = Math.sin(a) * d;
+		}
+		layout.scrollToX(sumx / count + offx);
+		layout.scrollToY(sumy / count + offy);
+	};
+	function Acts() {};
+	Acts.prototype.Shake = function (mag, dur, mode)
+	{
+		this.behavior.shakeMag = mag;
+		this.behavior.shakeStart = this.runtime.kahanTime.sum;
+		this.behavior.shakeEnd = this.behavior.shakeStart + dur;
+		this.behavior.shakeMode = mode;
+	};
+	Acts.prototype.SetEnabled = function (e)
+	{
+		this.enabled = (e !== 0);
+	};
+	behaviorProto.acts = new Acts();
+}());
 cr.getObjectRefTable = function () { return [
 	cr.plugins_.Dictionary,
 	cr.plugins_.Function,
-	cr.plugins_.Keyboard,
-	cr.plugins_.Mouse,
-	cr.plugins_.progressbar,
 	cr.plugins_.LocalStorage,
+	cr.plugins_.progressbar,
+	cr.plugins_.Mouse,
+	cr.plugins_.Keyboard,
 	cr.plugins_.Text,
 	cr.plugins_.Sprite,
 	cr.plugins_.TiledBg,
 	cr.behaviors.EightDir,
 	cr.behaviors.bound,
+	cr.behaviors.scrollto,
 	cr.behaviors.Bullet,
 	cr.behaviors.destroy,
-	cr.system_object.prototype.cnds.IsGroupActive,
 	cr.system_object.prototype.cnds.OnLayoutStart,
 	cr.system_object.prototype.acts.SetVar,
 	cr.plugins_.Sprite.prototype.acts.Destroy,
 	cr.plugins_.LocalStorage.prototype.acts.CheckItemExists,
 	cr.plugins_.LocalStorage.prototype.cnds.OnItemExists,
 	cr.plugins_.LocalStorage.prototype.acts.GetItem,
-	cr.system_object.prototype.cnds.CompareVar,
 	cr.system_object.prototype.cnds.Every,
+	cr.system_object.prototype.acts.CreateObject,
 	cr.system_object.prototype.exps.random,
-	cr.system_object.prototype.exps.layoutwidth,
-	cr.system_object.prototype.exps.layoutheight,
-	cr.system_object.prototype.cnds.CompareBetween,
-	cr.plugins_.Sprite.prototype.exps.BBoxTop,
-	cr.plugins_.Sprite.prototype.exps.BBoxBottom,
 	cr.plugins_.Sprite.prototype.exps.BBoxLeft,
 	cr.plugins_.Sprite.prototype.exps.BBoxRight,
-	cr.plugins_.Sprite.prototype.exps.X,
-	cr.plugins_.Sprite.prototype.exps.Y,
-	cr.system_object.prototype.acts.CreateObject,
-	cr.system_object.prototype.cnds.Else,
-	cr.system_object.prototype.cnds.Compare,
-	cr.system_object.prototype.cnds.TriggerOnce,
-	cr.plugins_.Mouse.prototype.cnds.OnClick,
-	cr.plugins_.Sprite.prototype.acts.Spawn,
-	cr.plugins_.Keyboard.prototype.cnds.IsKeyDown,
-	cr.behaviors.EightDir.prototype.acts.SimulateControl,
+	cr.system_object.prototype.exps.layoutwidth,
+	cr.plugins_.Sprite.prototype.exps.BBoxBottom,
+	cr.system_object.prototype.exps.layoutheight,
+	cr.plugins_.Sprite.prototype.exps.BBoxTop,
+	cr.system_object.prototype.cnds.IsGroupActive,
 	cr.system_object.prototype.cnds.EveryTick,
 	cr.plugins_.Sprite.prototype.acts.SetTowardPosition,
 	cr.plugins_.Mouse.prototype.exps.X,
 	cr.plugins_.Mouse.prototype.exps.Y,
+	cr.plugins_.Sprite.prototype.exps.X,
+	cr.plugins_.Sprite.prototype.exps.Y,
+	cr.plugins_.Mouse.prototype.cnds.OnClick,
+	cr.plugins_.Sprite.prototype.acts.Spawn,
+	cr.plugins_.Keyboard.prototype.cnds.IsKeyDown,
+	cr.behaviors.EightDir.prototype.acts.SimulateControl,
 	cr.plugins_.Sprite.prototype.cnds.OnCollision,
 	cr.plugins_.Sprite.prototype.acts.SubInstanceVar,
 	cr.system_object.prototype.acts.AddVar,
 	cr.plugins_.Text.prototype.acts.SetText,
 	cr.plugins_.Function.prototype.cnds.OnFunction,
 	cr.system_object.prototype.acts.GoToLayout,
+	cr.system_object.prototype.cnds.Compare,
 	cr.plugins_.LocalStorage.prototype.acts.SetItem,
 	cr.plugins_.Function.prototype.acts.CallFunction,
 	cr.plugins_.Sprite.prototype.cnds.CompareInstanceVar,
-	cr.plugins_.Text.prototype.acts.SubInstanceVar,
+	cr.plugins_.Sprite.prototype.cnds.OnDestroyed,
+	cr.system_object.prototype.acts.Wait,
 	cr.plugins_.Mouse.prototype.cnds.OnObjectClicked,
 	cr.system_object.prototype.acts.GoToLayoutByName,
 	cr.plugins_.LocalStorage.prototype.cnds.OnItemGet,
